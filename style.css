@@ -1,4 +1,7 @@
 :root {
+    color-scheme: light dark;
+    --tab-active: #e8eefc;
+    --break: #eef2f7;
     --bg: #f5f7fb;
     --card: #fff;
     --text: #172033;
@@ -67,7 +70,7 @@ body {
 
 .tab.active,
 .admin-tab.active {
-    background: #e8eefc;
+    background: var(--tab-active);
     color: var(--primary);
     font-weight: 700
 }
@@ -219,7 +222,7 @@ main {
 }
 
 .break {
-    background: #eef2f7;
+    background: var(--break);
     font-weight: 700;
     text-align: center
 }
@@ -289,7 +292,8 @@ main {
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 9px;
-    background: #fff
+    background: var(--card);
+    color: var(--text)
 }
 
 .row {
@@ -300,7 +304,8 @@ main {
 .row button,
 .danger {
     border: 1px solid var(--border);
-    background: #fff;
+    background: var(--card);
+    color: var(--text);
     border-radius: 8px;
     padding: 9px 13px
 }
@@ -328,6 +333,8 @@ main {
 }
 
 dialog {
+    background: var(--card);
+    color: var(--text);
     border: 0;
     border-radius: 14px;
     padding: 22px;
@@ -398,7 +405,7 @@ dialog::backdrop {
 
 .notify-box button {
     border: 1px solid var(--primary);
-    background: #e8eefc;
+    background: var(--tab-active);
     color: var(--primary);
     font-weight: 700;
     border-radius: 10px;
@@ -445,5 +452,40 @@ dialog::backdrop {
 
     main {
         padding: 10px
+    }
+}
+
+@media(prefers-color-scheme:dark) {
+    :root {
+        --bg: #0f172a;
+        --card: #1e293b;
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --border: #334155;
+        --primary: #3b82f6;
+        --danger: #f87171;
+        --tab-active: #1e2a4a;
+        --break: #273449
+    }
+
+    .topbar {
+        background: #020617
+    }
+
+    .day.today {
+        outline-color: #60a5fa
+    }
+
+    .calendar-head button,
+    .ghost {
+        color: var(--text)
+    }
+
+    .ghost {
+        color: #fff
+    }
+
+    dialog::backdrop {
+        background: #000a
     }
 }
