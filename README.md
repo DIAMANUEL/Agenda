@@ -1,30 +1,21 @@
-# Calendario de clase — versión administración
+# Calendario de clase
 
-## Publicar
-Sube todos los archivos a GitHub y conecta el repositorio a Netlify. Deja el comando de build vacío y usa `.` como directorio de publicación.
+## Supabase
+1. Ejecuta `supabase-setup.sql` en SQL Editor.
+2. Crea el usuario en Authentication > Users con Auto confirm.
+3. Añade su UUID a `admin_users` si todavía no lo has hecho:
 
-## Activar calendario compartido
-1. Crea un proyecto en Supabase.
-2. Ejecuta `supabase-setup.sql` en Supabase > SQL Editor.
-3. El Project URL y la publishable key ya están puestos en `config.js`. No sustituyas esa clave por una secret/service_role.
-4. En Supabase > Authentication > Users crea el usuario administrador con email y contraseña.
-5. Copia su UUID y ejecuta: `insert into public.admin_users(user_id) values ('UUID_DEL_ADMIN');`
-6. Sube `config.js` actualizado a GitHub. No uses nunca la clave `service_role` en el navegador.
+```sql
+insert into public.admin_users (user_id)
+select id from auth.users where email='TU_CORREO'
+on conflict (user_id) do nothing;
+```
 
-## Acceso de administración
-Navega al mes de enero y haz cinco clics rápidos seguidos sobre el día 15. Aparecerá el formulario de acceso. Inicia sesión con el usuario creado en Supabase. Los eventos se guardan en la base compartida y se actualizan en tiempo real para todos.
+La configuración de Supabase está en `config.js`.
 
-## Horario del PDF
-Se ha transcrito el cuadro por columnas, interpretándolas como lunes a viernes. Las filas «P A T I O» se han representado como recreos. Las alternativas con `/` se muestran como optativas:
-- Valenciano (Carolina) / Valenciano (Pau)
-- FyQ / Economía
-- FOPP / Biología
-- Tecnología / Latín
-- Mate A / Mate B
-- Castellano Carolina / Castellano Gema
-
-Las asignaturas que aparecen sin alternativas se consideran obligatorias. El PDF no indica horas exactas ni encabezados de días, por lo que se han mantenido sesiones numeradas y el orden de columnas asumido como lunes-viernes.
-
-## Seguridad
-Supabase Auth valida el inicio de sesión y RLS limita inserción, edición y borrado a usuarios añadidos a `admin_users`. La publishable key es pública por diseño; nunca publiques una secret/service_role ni la contraseña de PostgreSQL.
-Sin Supabase configurado se muestran eventos locales de demostración, pero no se comparten entre alumnos.
+## Nuevas funciones
+- Asignatura en eventos mediante desplegable.
+- Colores configurables por asignatura desde el modo administrador.
+- Horario con clases de 55 minutos: 08:00–08:55, 08:55–09:50, recreo 09:50–10:15, 10:15–11:10, 11:10–12:05, 12:05–13:00, recreo 13:00–13:20, 13:20–14:15, 14:15–15:10.
+- Sección Libros para visualizar PDFs.
+- El administrador puede subir PDFs directamente a Supabase Storage.

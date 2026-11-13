@@ -1,147 +1,54 @@
-// Supabase compartirá los eventos entre todos los usuarios. Sin configurar,
-// la web muestra datos locales de demostración.
-const hasConfig = window.APP_CONFIG?.SUPABASE_URL && window.APP_CONFIG?.SUPABASE_PUBLISHABLE_KEY &&
-  !window.APP_CONFIG.SUPABASE_URL.includes("TU_");
-const db = hasConfig && window.supabase ? window.supabase.createClient(window.APP_CONFIG.SUPABASE_URL,window.APP_CONFIG.SUPABASE_PUBLISHABLE_KEY) : null;
-const demo = [
- {id:"demo1",date:"2026-11-16",type:"exam",subject:"Matemáticas",title:"Examen de funciones",description:"Tema 3 · Funciones y gráficas"},
- {id:"demo2",date:"2026-11-18",type:"task",subject:"Historia",title:"Entregar comentario de texto",description:"Entrega en clase."},
- {id:"demo3",date:"2026-11-20",type:"exam",subject:"Inglés",title:"Examen Unit 4",description:"Grammar + Vocabulary"}
+const {createClient}=supabase;
+const db=createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const state={month:new Date(new Date().getFullYear(),new Date().getMonth(),1),selected:new Date(),events:[],subjects:[],books:[],session:null};
+const schedule=[
+['08:00–08:55','Valenciano (Carolina) / Valenciano (Pau)','Valenciano (Carolina) / Valenciano (Pau)','FyQ / Economía','Inglés','FyQ / Economía'],
+['08:55–09:50','FOPP / Biología','Educación Física','Proyecto Interdisciplinar','FOPP / Biología','Inglés'],
+['09:50–10:15','PATIO','PATIO','PATIO','PATIO','PATIO'],
+['10:15–11:10','Tecnología / Latín','Mate A / Mate B','Tutoría','Mate A / Mate B','Geografía e Historia'],
+['11:10–12:05','Inglés','Castellano Carolina / Castellano Gema','Castellano Carolina / Castellano Gema','Valenciano (Carolina) / Valenciano (Pau)','Castellano Carolina / Castellano Gema'],
+['12:05–13:00','Mate A / Mate B','Geografía e Historia','Tecnología / Latín','Geografía e Historia','Mate A / Mate B'],
+['13:00–13:20','PATIO','PATIO','PATIO','PATIO','PATIO'],
+['13:20–14:15','FyQ / Economía','Proyecto Interdisciplinar','FOPP / Biología','Tecnología / Latín',''],
+['14:15–15:10','','Religión','Educación Valores','Educación Física','']
 ];
-let events=[...demo], currentDate=new Date(new Date().getFullYear(),new Date().getMonth(),1), selectedDate=fmt(new Date()), adminUser=null, deferredPrompt=null, janClicks=0, janTimer=null;
-const $=id=>document.getElementById(id), days=["Lunes","Martes","Miércoles","Jueves","Viernes"];
-const typeNames={exam:"Examen",task:"Entrega",other:"Actividad"}, icons={exam:"✎",task:"▤",other:"◇"};
-// Transcripción del PDF: columnas de lunes a viernes, filas en orden de lectura.
-// Las celdas con "/" se convierten en opciones independientes.
-const timetable=[
- ["Valenciano (Carolina)/Valenciano (Pau)","Valenciano (Carolina)/Valenciano (Pau)","FyQ/Economía","Inglés","FyQ/Economía"],
- ["FOPP/Biología","Educación Física","Proyecto Interdisciplinar","FOPP/Biología","Inglés"],
- ["Tecnología/Latín","Mate A/Mate B","Tutoría","Mate A/Mate B","Geografía e Historia"],
- ["Inglés","Castellano Carolina/Castellano Gema","Castellano Carolina/Castellano Gema","Valenciano (Carolina)/Valenciano (Pau)","Castellano Carolina/Castellano Gema"],
- ["Mate A/Mate B","Geografía e Historia","Tecnología/Latín","Geografía e Historia","Mate A/Mate B"],
- ["FyQ/Economía","Proyecto Interdisciplinar","FOPP/Biología","Tecnología/Latín",""],
- ["","Religión","Educación Valores","Educación Física",""]
-];
-const breaksAfter=[1,4]; // P-A-T-I-O tras segunda y quinta fila de clase, según las dos filas del PDF.
-const choiceGroups=[
- ["Valenciano (Carolina)","Valenciano (Pau)"],["FyQ","Economía"],["FOPP","Biología"],
- ["Tecnología","Latín"],["Mate A","Mate B"],["Castellano Carolina","Castellano Gema"]
-];
-const required=["Inglés","Educación Física","Proyecto Interdisciplinar","Tutoría","Geografía e Historia","Religión","Educación Valores"];
-const allChoices=[...new Set(choiceGroups.flat())];
-function fmt(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
-function choices(){try{const a=JSON.parse(localStorage.getItem("classChoices"));return Array.isArray(a)?a:[...allChoices]}catch{return [...allChoices]}}
-function visibleSubject(s){return required.includes(s)||!allChoices.includes(s)||choices().includes(s)}
-function forDate(date){return events.filter(e=>e.date===date&&visibleSubject(e.subject))}
-function openModal(id){$(id).classList.remove("hidden")}function closeModal(id){$(id).classList.add("hidden")}
-document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",()=>closeModal(b.dataset.close)));
-document.addEventListener("keydown",e=>{if(e.key==="Escape")document.querySelectorAll(".modal").forEach(m=>m.classList.add("hidden"))});
-
-function renderCalendar(){
- const box=$("calendar");box.replaceChildren();const y=currentDate.getFullYear(),m=currentDate.getMonth();
- $("monthTitle").textContent=currentDate.toLocaleDateString("es-ES",{month:"long",year:"numeric"});
- const offset=(new Date(y,m,1).getDay()+6)%7,total=new Date(y,m+1,0).getDate();
- for(let i=0;i<offset;i++){const x=document.createElement("div");x.className="calendar-day outside";box.append(x)}
- for(let d=1;d<=total;d++){
-  const date=new Date(y,m,d),key=fmt(date),list=forDate(key),b=document.createElement("button");b.type="button";b.className="calendar-day";
-  if(key===fmt(new Date()))b.classList.add("today");if(key===selectedDate)b.classList.add("selected");
-  b.setAttribute("aria-label",`${d} ${date.toLocaleDateString("es-ES",{month:"long"})}`);
-  const n=document.createElement("span");n.className="day-number";n.textContent=d;const dots=document.createElement("span");dots.className="day-dots";
-  list.slice(0,3).forEach(ev=>{const dot=document.createElement("i");dot.className=`dot dot-${ev.type}`;dots.append(dot)});b.append(n,dots);
-  b.addEventListener("click",()=>{
-   if(m===0&&d===15){janClicks++;clearTimeout(janTimer);janTimer=setTimeout(()=>janClicks=0,1800);if(janClicks>=5){janClicks=0;showAdminLogin()}}else janClicks=0;
-   selectedDate=key;renderCalendar();renderDay();
-  });box.append(b);
- }
+const optatives=['Biología','Economía','FOPP','Latín','Mate A','Mate B','Religión','Educación Valores'];
+function subjectColor(name){return state.subjects.find(s=>s.name===name)?.color||'#64748b'}
+function uniqueSubjects(){return [...new Set(schedule.flatMap(r=>r.slice(1).join('|').split('|').flatMap(x=>x.split(' / '))).filter(Boolean))]}
+async function load(){
+ $('#connectionStatus').textContent='Conectado';
+ const [e,s,b]=await Promise.all([db.from('class_events').select('*').order('date').order('time'),db.from('subjects').select('*').order('name'),db.from('books').select('*').order('created_at',{ascending:false})]);
+ if(e.error) console.error(e.error); if(s.error) console.error(s.error); if(b.error) console.error(b.error);
+ state.events=e.data||[]; state.subjects=s.data||[]; state.books=b.data||[];
+ renderCalendar(); renderDay(); renderSchedule(); renderBooks(); renderOptions(); populateSubjectSelect(); renderAdminEvents(); renderAdminSubjects(); renderAdminBooks();
 }
-function renderDay(){
- const date=new Date(`${selectedDate}T12:00:00`);$("selectedDate").textContent=date.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"});
- const list=forDate(selectedDate),box=$("dayEvents");$("eventCount").textContent=`${list.length} ${list.length===1?"evento":"eventos"}`;box.replaceChildren();
- if(!list.length){const p=document.createElement("p");p.className="empty-state";p.textContent="No hay tareas ni exámenes para este día.";box.append(p);return}
- list.forEach(ev=>{
-  const card=document.createElement("article");card.className=`event-card ${ev.type}`;const symbol=document.createElement("div");symbol.className="event-symbol";symbol.textContent=icons[ev.type]||"◇";
-  const info=document.createElement("div"),title=document.createElement("h3"),desc=document.createElement("p"),meta=document.createElement("p");title.textContent=ev.title;desc.textContent=ev.description||"Sin explicación adicional.";meta.className="event-meta";meta.textContent=`${ev.subject} · ${typeNames[ev.type]}${ev.time?" · "+ev.time:""}`;
-  const actions=document.createElement("div");actions.className="event-actions";const detail=document.createElement("button");detail.className="text-button";detail.textContent="Ver detalles";detail.addEventListener("click",()=>showDetails(ev));
-  info.append(title,desc,meta);actions.append(detail);card.append(symbol,info,actions);box.append(card);
- });
-}
-function showDetails(ev){
- $("detailType").textContent=typeNames[ev.type]||"EVENTO";$("detailTitle").textContent=ev.title;
- const d=new Date(`${ev.date}T12:00:00`);$("detailMeta").textContent=`${ev.subject} · ${d.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}${ev.time?" · "+ev.time:""}`;
- $("detailDescription").textContent=ev.description||"No se ha añadido una explicación para este evento.";openModal("detailModal");
-}
-function renderSubjects(){
- const box=$("subjects");box.replaceChildren();const selected=choices();
- choiceGroups.forEach(group=>group.forEach(name=>{
-  const label=document.createElement("label");label.className="subject-option";const input=document.createElement("input");input.type="checkbox";input.checked=selected.includes(name);
-  input.addEventListener("change",()=>{const next=choices();localStorage.setItem("classChoices",JSON.stringify(input.checked?[...new Set([...next,name])]:next.filter(x=>x!==name)));renderSubjects();renderSchedule();renderCalendar();renderDay()});
-  const text=document.createElement("span");text.textContent=name;const tag=document.createElement("span");tag.className="subject-tag";tag.textContent="Optativa";label.append(input,text,tag);box.append(label);
- }));
- required.forEach(name=>{const label=document.createElement("label");label.className="subject-option";const input=document.createElement("input");input.type="checkbox";input.checked=true;input.disabled=true;const text=document.createElement("span");text.textContent=name;const tag=document.createElement("span");tag.className="subject-tag";tag.textContent="Obligatoria";label.append(input,text,tag);box.append(label)});
-}
-function renderSchedule(){
- const box=$("schedule");box.replaceChildren();["Hora",...days].forEach(t=>{const c=document.createElement("div");c.className="schedule-cell header-cell";c.textContent=t;box.append(c)});
- timetable.forEach((row,index)=>{
-  const time=document.createElement("div");time.className="schedule-cell time-cell";time.textContent=`${index+1}ª clase`;box.append(time);
-  row.forEach(raw=>{
-   const c=document.createElement("div");c.className="schedule-cell";
-   if(!raw){c.textContent="—";c.style.color="var(--muted)"}else{
-    const names=raw.split("/");names.forEach(name=>{const s=document.createElement("span");s.className="schedule-subject";s.textContent=name;if(allChoices.includes(name))s.classList.add("schedule-choice");if(!visibleSubject(name))s.hidden=true;c.append(s)});
-    if([...c.children].every(el=>el.hidden))c.textContent="—";
-   }box.append(c);
-  });
-  if(index===1||index===4){const br=document.createElement("div");br.className="schedule-cell break-cell";br.style.gridColumn="1 / -1";br.textContent="PATIO";box.append(br);}
- });
-}
-$("prevMonth").addEventListener("click",()=>{currentDate=new Date(currentDate.getFullYear(),currentDate.getMonth()-1,1);renderCalendar()});
-$("nextMonth").addEventListener("click",()=>{currentDate=new Date(currentDate.getFullYear(),currentDate.getMonth()+1,1);renderCalendar()});
-
-// Acceso de administración: cinco pulsaciones rápidas en el 15 de enero.
-function showAdminLogin(){$("loginMessage").textContent="";$("loginForm").reset();openModal("adminModal")}
-$("loginForm").addEventListener("submit",async e=>{
- e.preventDefault();const msg=$("loginMessage");if(!db){msg.textContent="Primero configura Supabase siguiendo README.md.";return}
- msg.textContent="Verificando…";const {data,error}=await db.auth.signInWithPassword({email:$("adminEmail").value.trim(),password:$("adminPassword").value});
- if(error){msg.textContent="Credenciales incorrectas o acceso no disponible.";return}
- const {data:admin,error:checkError}=await db.from("admin_users").select("user_id").eq("user_id",data.user.id).maybeSingle();
- if(checkError||!admin){await db.auth.signOut();msg.textContent="Esta cuenta no tiene permisos de administrador.";return}
- adminUser=data.user;closeModal("adminModal");openModal("editorModal");renderAdminList();
-});
-$("logoutBtn").addEventListener("click",async()=>{if(db)await db.auth.signOut();adminUser=null;closeModal("editorModal");resetForm()});
-function openAdminList(){renderAdminList()}
-function renderAdminList(){
- const box=$("adminEventList");box.replaceChildren();if(!events.length){const p=document.createElement("p");p.className="muted small";p.textContent="Todavía no hay eventos.";box.append(p);return}
- [...events].sort((a,b)=>a.date.localeCompare(b.date)).forEach(ev=>{
-  const row=document.createElement("div");row.className="admin-event-row";const info=document.createElement("div"),title=document.createElement("strong"),meta=document.createElement("small");title.textContent=ev.title;meta.textContent=`${ev.date} · ${ev.subject} · ${typeNames[ev.type]}`;info.append(title,meta);
-  const actions=document.createElement("div");actions.className="admin-row-actions";const edit=document.createElement("button");edit.className="text-button";edit.textContent="Editar";edit.addEventListener("click",()=>fillForm(ev));const del=document.createElement("button");del.className="text-button";del.textContent="Eliminar";del.addEventListener("click",()=>removeEvent(ev));actions.append(edit,del);row.append(info,actions);box.append(row);
- });
-}
-function fillForm(ev){$("eventId").value=ev.id;$("eventType").value=ev.type;$("eventDate").value=ev.date;$("eventTitle").value=ev.title;$("eventSubject").value=ev.subject;$("eventTime").value=ev.time||"";$("eventDescription").value=ev.description||"";$("editorTitle").textContent="Editar evento";$("cancelEditBtn").classList.remove("hidden");$("eventForm").scrollIntoView({behavior:"smooth",block:"start"})}
-function resetForm(){$("eventForm").reset();$("eventId").value="";$("editorTitle").textContent="Administrar calendario";$("cancelEditBtn").classList.add("hidden")}
-$("cancelEditBtn").addEventListener("click",resetForm);
-$("eventForm").addEventListener("submit",async e=>{
- e.preventDefault();if(!db||!adminUser){$("eventFormMessage").textContent="No hay una sesión de administrador.";return}
- const id=$("eventId").value,payload={type:$("eventType").value,event_date:$("eventDate").value,title:$("eventTitle").value.trim(),subject:$("eventSubject").value.trim(),event_time:$("eventTime").value||null,description:$("eventDescription").value.trim(),created_by:adminUser.id};
- $("eventFormMessage").textContent="Guardando…";
- const result=id?await db.from("class_events").update(payload).eq("id",id):await db.from("class_events").insert(payload);
- if(result.error){$("eventFormMessage").textContent="No se pudo guardar. Revisa la configuración de Supabase.";console.error(result.error);return}
- $("eventFormMessage").textContent="Publicado para toda la clase.";resetForm();await loadEvents();
-});
-async function removeEvent(ev){if(!confirm(`¿Eliminar «${ev.title}» para toda la clase?`))return;const {error}=await db.from("class_events").delete().eq("id",ev.id);if(error){alert("No se pudo eliminar.");return}await loadEvents()}
-function mapRow(r){return{id:r.id,date:r.event_date,type:r.type,subject:r.subject,title:r.title,description:r.description||"",time:r.event_time||""}}
-async function loadEvents(){
- if(!db)return;const {data,error}=await db.from("class_events").select("*").order("event_date");
- if(error){console.error(error);$("notificationStatus").textContent="Error al conectar con Supabase; revisa config.js y supabase-setup.sql.";return}
- events=(data||[]).map(mapRow);renderCalendar();renderDay();if(adminUser)renderAdminList();
-}
-if(db){loadEvents();db.channel("events-live").on("postgres_changes",{event:"*",schema:"public",table:"class_events"},loadEvents).subscribe()}
-
-// Notificación local de prueba; los avisos programados necesitan Web Push en servidor.
-$("notificationBtn").addEventListener("click",async()=>{
- const status=$("notificationStatus");if(!("Notification"in window)){status.textContent="Este navegador no admite notificaciones.";return}
- try{const permission=await Notification.requestPermission();if(permission==="granted"){const reg=await navigator.serviceWorker.ready;reg.showNotification("Calendario de clase",{body:"Has activado los avisos en este dispositivo.",icon:"./icons/icon-192.png"});status.textContent="Permiso concedido. Los recordatorios automáticos requieren configurar Web Push.";$("notificationBtn").textContent="Avisos permitidos"}else status.textContent="No se ha concedido permiso."}catch(err){status.textContent="No se pudo activar el permiso.";console.error(err)}
-});
-window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredPrompt=e;$("installBtn").classList.remove("hidden")});
-$("installBtn").addEventListener("click",async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$("installBtn").classList.add("hidden")});
-if("serviceWorker"in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(console.error));
-$("todayLabel").textContent=new Date().toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"});
-renderSubjects();renderSchedule();renderCalendar();renderDay();
+function renderCalendar(){const d=new Date(state.month),y=d.getFullYear(),m=d.getMonth();$('#monthTitle').textContent=d.toLocaleDateString('es-ES',{month:'long',year:'numeric'});const first=new Date(y,m,1),start=(first.getDay()+6)%7,days=new Date(y,m+1,0).getDate(),prev=new Date(y,m,0).getDate();let html='';for(let i=0;i<start;i++)html+=dayCell(new Date(y,m-1,prev-start+i+1),true);for(let n=1;n<=days;n++)html+=dayCell(new Date(y,m,n),false);let trailing=(7-((start+days)%7))%7; for(let i=1;i<=trailing;i++) html+=dayCell(new Date(y,m+1,i),true); $('#calendarGrid').innerHTML=html;$$('.day').forEach(x=>x.onclick=()=>{state.selected=new Date(x.dataset.date+'T12:00:00');renderCalendar();renderDay()})}
+function dayCell(date,other){const iso=date.toISOString().slice(0,10),ev=state.events.filter(e=>e.date===iso),today=new Date().toISOString().slice(0,10);return `<div class="day ${other?'other-month':''} ${iso===today?'today':''} ${iso===state.selected.toISOString().slice(0,10)?'selected':''}" data-date="${iso}"><div class="day-num">${date.getDate()}</div><div class="dots">${ev.slice(0,5).map(e=>`<span class="dot" style="background:${subjectColor(e.subject)}"></span>`).join('')}</div></div>`}
+function renderDay(){const iso=state.selected.toISOString().slice(0,10),list=state.events.filter(e=>e.date===iso);$('#dayEvents').innerHTML=`<h3>${state.selected.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}</h3>`+(list.length?list.map(e=>`<article class="event-card" style="border-left-color:${subjectColor(e.subject)}"><h3>${esc(e.title)}</h3><div class="meta">${esc(e.subject)}${e.time?' · '+e.time:''} · ${labelType(e.type)}</div><button onclick="showDetails('${e.id}')">Ver detalles</button></article>`).join(''):'<div class="event-card"><div class="meta">No hay eventos este día.</div></div>')}
+function labelType(t){return {exam:'Examen',task:'Entrega',activity:'Actividad',other:'Otro'}[t]||t}
+function showDetails(id){const e=state.events.find(x=>x.id===id);if(!e)return;$('#detailsTitle').textContent=e.title;$('#detailsBody').innerHTML=`<p><strong>Asignatura:</strong> ${esc(e.subject)}</p><p><strong>Fecha:</strong> ${new Date(e.date+'T12:00:00').toLocaleDateString('es-ES')}</p>${e.time?`<p><strong>Hora:</strong> ${e.time}</p>`:''}<p><strong>Tipo:</strong> ${labelType(e.type)}</p><p>${esc(e.description||'Sin descripción.')}</p>`;$('#detailsDialog').showModal()}
+window.showDetails=showDetails;
+function renderSchedule(){const names=['Hora','Lunes','Martes','Miércoles','Jueves','Viernes'];let h=names.map(n=>`<div class="schedule-cell schedule-head">${n}</div>`).join('');schedule.forEach(r=>{h+=`<div class="schedule-cell time">${r[0]}</div>`;for(let i=1;i<6;i++){if(r[1]==='PATIO')h+=`<div class="schedule-cell break">PATIO</div>`;else{const parts=(r[i]||'').split(' / ');h+=`<div class="schedule-cell">${parts.map(p=>p?`<span class="subject-pill" style="background:${subjectColor(p)}22;color:${subjectColor(p)};border:1px solid ${subjectColor(p)}55">${esc(p)}</span>`:'').join('')}</div>`}}});$('#schedule').innerHTML=h}
+function renderBooks(){if(!state.books.length){$('#booksList').innerHTML='<div class="book-card">Todavía no hay libros.</div>';return}$('#booksList').innerHTML=state.books.map(b=>`<article class="book-card book-entry"><div><strong>${esc(b.title)}</strong></div><button onclick="viewBook('${b.id}')">Ver PDF</button></article>`).join('')}
+window.viewBook=id=>{const b=state.books.find(x=>x.id===id);if(!b)return;$('#detailsTitle').textContent=b.title;$('#detailsBody').innerHTML=`<iframe class="book-viewer" src="${b.url}#toolbar=1" title="${esc(b.title)}"></iframe>`;$('#detailsDialog').showModal()}
+function renderOptions(){const saved=JSON.parse(localStorage.getItem('classOptions')||'[]');$('#optionsList').innerHTML=optatives.map(o=>`<label class="option-card"><input type="checkbox" data-opt="${esc(o)}" ${saved.includes(o)?'checked':''}> ${esc(o)}</label>`).join('');$$('[data-opt]').forEach(x=>x.onchange=()=>{const vals=$$('[data-opt]:checked').map(i=>i.dataset.opt);localStorage.setItem('classOptions',JSON.stringify(vals));renderSchedule()})}
+function populateSubjectSelect(){const names=[...new Set([...state.subjects.map(s=>s.name),...uniqueSubjects()])].sort();$('#eventSubject').innerHTML='<option value="">Selecciona asignatura</option>'+names.map(n=>`<option>${esc(n)}</option>`).join('')}
+function renderAdminEvents(){if(!$('#adminEventsList'))return;$('#adminEventsList').innerHTML=state.events.map(e=>`<div class="admin-item"><div><strong>${esc(e.title)}</strong><div class="meta">${e.date} · ${esc(e.subject)}</div></div><div><button onclick="editEvent('${e.id}')">Editar</button> <button onclick="deleteEvent('${e.id}')">Eliminar</button></div></div>`).join('')||'<p class="meta">No hay eventos.</p>'}
+window.editEvent=id=>{const e=state.events.find(x=>x.id===id);if(!e)return;$('#eventId').value=e.id;$('#eventType').value=e.type;$('#eventDate').value=e.date;$('#eventTime').value=e.time||'';$('#eventSubject').value=e.subject;$('#eventTitle').value=e.title;$('#eventDescription').value=e.description||''}
+window.deleteEvent=async id=>{if(!confirm('¿Eliminar este evento?'))return;const {error}=await db.from('class_events').delete().eq('id',id);if(error)return alert(error.message);await load()}
+function renderAdminSubjects(){if(!$('#subjectsAdminList'))return;$('#subjectsAdminList').innerHTML=state.subjects.map(s=>`<div class="admin-item"><div><span class="color-swatch" style="background:${s.color}"></span> <strong>${esc(s.name)}</strong></div><button onclick="editSubject('${s.id}')">Editar</button></div>`).join('')||'<p class="meta">No hay asignaturas configuradas todavía.</p>'}
+window.editSubject=id=>{const s=state.subjects.find(x=>x.id===id);if(!s)return;$('#subjectId').value=s.id;$('#subjectName').value=s.name;$('#subjectColor').value=s.color||'#2563eb'}
+function renderAdminBooks(){if(!$('#adminBooksList'))return;$('#adminBooksList').innerHTML=state.books.map(b=>`<div class="admin-item"><div><strong>${esc(b.title)}</strong></div><button onclick="deleteBook('${b.id}','${esc(b.storage_path||'')}')">Eliminar</button></div>`).join('')}
+window.deleteBook=async(id,path)=>{if(!confirm('¿Eliminar este libro?'))return;await db.storage.from('books').remove([path]);const {error}=await db.from('books').delete().eq('id',id);if(error)return alert(error.message);await load()}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function openAdmin(){if(state.session){$('#loginView').classList.add('hidden');$('#adminView').classList.remove('hidden')}else{$('#loginView').classList.remove('hidden');$('#adminView').classList.add('hidden')}$('#adminDialog').showModal()}
+$('#adminTrigger').onclick=openAdmin;let clicks=0;$('#adminTrigger').onclick=()=>openAdmin();$$('.tab').forEach(b=>b.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');$$('.section').forEach(x=>x.classList.remove('active'));$('#'+b.dataset.section+'Section').classList.add('active')});$('#prevMonth').onclick=()=>{state.month=new Date(state.month.getFullYear(),state.month.getMonth()-1,1);renderCalendar()};$('#nextMonth').onclick=()=>{state.month=new Date(state.month.getFullYear(),state.month.getMonth()+1,1);renderCalendar()};
+$('#loginForm').onsubmit=async ev=>{ev.preventDefault();$('#loginError').textContent='';const {data,error}=await db.auth.signInWithPassword({email:$('#loginEmail').value,password:$('#loginPassword').value});if(error){$('#loginError').textContent=error.message;return}state.session=data.session;openAdmin()};$('#logoutBtn').onclick=async()=>{await db.auth.signOut();state.session=null;openAdmin()};
+$$('[data-close]').forEach(b=>b.onclick=()=>$('#'+b.dataset.close).close());
+$$('.admin-tab').forEach(b=>b.onclick=()=>{$$('.admin-tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');$$('.admin-section').forEach(x=>x.classList.remove('active'));$('#admin'+b.dataset.adminSection[0].toUpperCase()+b.dataset.adminSection.slice(1)).classList.add('active')});
+$('#cancelEvent').onclick=()=>$('#eventForm').reset();
+$('#eventForm').onsubmit=async ev=>{ev.preventDefault();const payload={type:$('#eventType').value,date:$('#eventDate').value,time:$('#eventTime').value||null,subject:$('#eventSubject').value,title:$('#eventTitle').value,description:$('#eventDescription').value};const id=$('#eventId').value;const q=id?db.from('class_events').update(payload).eq('id',id):db.from('class_events').insert(payload);const {error}=await q;if(error)return alert(error.message);$('#eventForm').reset();$('#eventId').value='';await load()};
+$('#subjectForm').onsubmit=async ev=>{ev.preventDefault();const payload={name:$('#subjectName').value.trim(),color:$('#subjectColor').value};const id=$('#subjectId').value;const q=id?db.from('subjects').update(payload).eq('id',id):db.from('subjects').insert(payload);const {error}=await q;if(error)return alert(error.message);$('#subjectForm').reset();$('#subjectColor').value='#2563eb';await load()};
+$('#bookForm').onsubmit=async ev=>{ev.preventDefault();const file=$('#bookFile').files[0];if(!file||file.type!=='application/pdf')return alert('Selecciona un archivo PDF.');$('#bookUploadStatus').textContent='Subiendo…';const path=`${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;const up=await db.storage.from('books').upload(path,file,{contentType:'application/pdf',upsert:false});if(up.error){$('#bookUploadStatus').textContent=up.error.message;return}const {data:urlData}=db.storage.from('books').getPublicUrl(path);const ins=await db.from('books').insert({title:$('#bookTitle').value.trim(),storage_path:path,url:urlData.publicUrl});if(ins.error){$('#bookUploadStatus').textContent=ins.error.message;return}$('#bookForm').reset();$('#bookUploadStatus').textContent='PDF subido correctamente.';await load()};
+db.auth.getSession().then(({data})=>{state.session=data.session;load()});db.auth.onAuthStateChange((_e,s)=>{state.session=s});

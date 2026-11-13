@@ -1,32 +1,115 @@
 <!doctype html>
-<html lang="es"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#3157d5"><meta name="description" content="Calendario de exámenes, entregas y horario de clase">
-<link rel="manifest" href="./manifest.json"><link rel="stylesheet" href="./style.css">
-<title>Calendario de clase</title></head><body>
-<header class="topbar"><a class="brand" href="./"><span class="brand-mark">C</span><span><strong>Calendario</strong><small>Tu clase, organizada</small></span></a><button id="installBtn" class="button button-light hidden" type="button">Instalar app</button></header>
-<main class="page">
-<section class="intro"><div><p class="eyebrow">CURSO 2026–2027</p><h1>Organiza tu semana.</h1><p class="muted">Consulta próximos exámenes, entregas y tus clases.</p></div><div class="today-chip"><span class="status-dot"></span><span id="todayLabel">Hoy</span></div></section>
-<div class="main-grid">
-<section class="panel"><div class="panel-heading"><div><p class="eyebrow">PLANIFICACIÓN</p><h2 id="monthTitle">Mes</h2></div><div class="month-controls"><button id="prevMonth" class="icon-button" aria-label="Mes anterior">‹</button><button id="nextMonth" class="icon-button" aria-label="Mes siguiente">›</button></div></div>
-<div class="weekdays"><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span></div><div id="calendar" class="calendar-grid"></div>
-<div class="legend"><span><i class="dot dot-exam"></i>Examen</span><span><i class="dot dot-task"></i>Entrega</span><span><i class="dot dot-other"></i>Actividad</span></div></section>
-<section class="panel" aria-live="polite"><div class="panel-heading"><div><p class="eyebrow">AGENDA</p><h2 id="selectedDate">Selecciona un día</h2></div><span id="eventCount" class="count-pill">0 eventos</span></div><div id="dayEvents" class="event-list"><p class="empty-state">Selecciona un día del calendario para consultar sus tareas y exámenes.</p></div></section>
-</div>
-<section class="panel"><div class="panel-heading"><div><p class="eyebrow">TU SEMANA</p><h2>Horario de clase</h2><p class="muted small">Horario transcrito del documento facilitado.</p></div></div><div class="schedule-wrap"><div id="schedule" class="schedule"></div></div><p class="help-text">Las asignaturas separadas por «/» son opciones. Marca las que cursas en «Mis asignaturas».</p></section>
-<section class="panel"><div class="panel-heading"><div><p class="eyebrow">PERSONALIZACIÓN</p><h2>Mis asignaturas</h2><p class="muted small">Las asignaturas obligatorias siempre aparecen. Marca las opciones que quieres ver.</p></div></div><div id="subjects" class="subject-list"></div><p class="help-text">Tu selección se guarda en este dispositivo. Para sincronizarla entre dispositivos habría que añadir cuentas de alumno.</p></section>
-<section class="panel reminder-panel"><div class="reminder-icon">♧</div><div class="reminder-copy"><h2>Recordatorios</h2><p class="muted small">Activa los avisos de este dispositivo. Los recordatorios automáticos con la app cerrada requieren configurar Web Push.</p></div><button id="notificationBtn" class="button button-primary" type="button">Activar avisos</button><p id="notificationStatus" class="notification-status" role="status"></p></section>
-</main><footer>Calendario de clase <span>·</span> Aplicación web progresiva</footer>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+  <title>Calendario de clase</title>
+</head>
+<body>
+  <header class="topbar">
+    <div><h1>Calendario de clase</h1><p id="connectionStatus">Conectando…</p></div>
+    <button id="adminTrigger" class="ghost" title="Acceso administrador">Admin</button>
+  </header>
 
-<div id="adminModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="adminModalTitle"><div class="modal-backdrop" data-close="adminModal"></div><div class="modal-card"><button class="modal-close" data-close="adminModal" aria-label="Cerrar">×</button><p class="eyebrow">ZONA PRIVADA</p><h2 id="adminModalTitle">Acceso de administrador</h2><p class="muted small modal-intro">Inicia sesión con el usuario administrador creado en Supabase.</p><form id="loginForm" class="form-stack"><label>Correo electrónico<input id="adminEmail" type="email" autocomplete="username" required></label><label>Contraseña<input id="adminPassword" type="password" autocomplete="current-password" required></label><button class="button button-primary" type="submit">Entrar</button><p id="loginMessage" class="form-message" role="status"></p></form></div></div>
+  <nav class="tabs" aria-label="Secciones">
+    <button class="tab active" data-section="calendar">Calendario</button>
+    <button class="tab" data-section="schedule">Horario</button>
+    <button class="tab" data-section="books">Libros</button>
+    <button class="tab" data-section="options">Optativas</button>
+  </nav>
 
-<div id="editorModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="editorTitle"><div class="modal-backdrop" data-close="editorModal"></div><div class="modal-card modal-wide"><button class="modal-close" data-close="editorModal" aria-label="Cerrar">×</button><div class="admin-heading"><div><p class="eyebrow">GESTIÓN DE CLASE</p><h2 id="editorTitle">Administrar calendario</h2><p class="muted small">Los cambios publicados se comparten con todos los usuarios.</p></div><button id="logoutBtn" class="button button-outline" type="button">Cerrar sesión</button></div>
-<form id="eventForm" class="form-stack"><input id="eventId" type="hidden"><div class="form-grid">
-<label>Tipo<select id="eventType"><option value="exam">Examen</option><option value="task">Entrega</option><option value="other">Actividad</option></select></label><label>Fecha<input id="eventDate" type="date" required></label>
-<label class="full">Título<input id="eventTitle" type="text" maxlength="100" placeholder="Ej. Examen del tema 4" required></label><label>Asignatura<input id="eventSubject" type="text" maxlength="70" placeholder="Ej. Matemáticas" required></label><label>Hora (opcional)<input id="eventTime" type="time"></label>
-<label class="full">Explicación / detalles<textarea id="eventDescription" rows="4" maxlength="2000" placeholder="Temario, páginas, materiales, instrucciones de entrega..."></textarea></label></div>
-<div class="form-actions"><button id="cancelEditBtn" class="button button-outline hidden" type="button">Cancelar edición</button><button class="button button-primary" type="submit">Publicar evento</button></div><p id="eventFormMessage" class="form-message" role="status"></p></form>
-<div class="admin-events-heading"><h3>Eventos publicados</h3><span class="muted small">Puedes editar o eliminar cualquier evento.</span></div><div id="adminEventList" class="admin-event-list"></div></div></div>
+  <main>
+    <section id="calendarSection" class="section active">
+      <div class="calendar-head">
+        <button id="prevMonth">‹</button><h2 id="monthTitle"></h2><button id="nextMonth">›</button>
+      </div>
+      <div class="weekdays"><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span></div>
+      <div id="calendarGrid" class="calendar-grid"></div>
+      <div id="dayEvents" class="events"></div>
+    </section>
 
-<div id="detailModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="detailTitle"><div class="modal-backdrop" data-close="detailModal"></div><div class="modal-card"><button class="modal-close" data-close="detailModal" aria-label="Cerrar">×</button><p id="detailType" class="eyebrow">EVENTO</p><h2 id="detailTitle">Detalle</h2><p id="detailMeta" class="detail-meta"></p><div id="detailDescription" class="detail-description"></div><button class="button button-primary detail-close" data-close="detailModal" type="button">Cerrar</button></div></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="./config.js"></script><script src="./app.js" defer></script></body></html>
+    <section id="scheduleSection" class="section">
+      <div class="section-title"><h2>Horario semanal</h2><p>Clases de 55 minutos. Recreos: 09:50–10:15 y 13:00–13:20.</p></div>
+      <div id="schedule" class="schedule"></div>
+    </section>
+
+    <section id="booksSection" class="section">
+      <div class="section-title"><h2>Libros</h2><p>Aquí aparecerán los libros PDF que añada el administrador.</p></div>
+      <div id="booksList" class="books-list"></div>
+    </section>
+
+    <section id="optionsSection" class="section">
+      <div class="section-title"><h2>Optativas</h2><p>Selecciona las asignaturas optativas que cursas para ocultar las demás.</p></div>
+      <div id="optionsList" class="options-list"></div>
+    </section>
+  </main>
+
+  <dialog id="adminDialog">
+    <div class="dialog-head"><h2>Modo administrador</h2><button class="close" data-close="adminDialog">×</button></div>
+    <div id="loginView">
+      <p>Inicia sesión con tu cuenta de administrador.</p>
+      <form id="loginForm" class="form">
+        <label>Correo<input id="loginEmail" type="email" required></label>
+        <label>Contraseña<input id="loginPassword" type="password" required></label>
+        <button class="primary" type="submit">Iniciar sesión</button>
+        <p id="loginError" class="error"></p>
+      </form>
+    </div>
+    <div id="adminView" class="hidden">
+      <div class="admin-tabs">
+        <button class="admin-tab active" data-admin-section="events">Eventos</button>
+        <button class="admin-tab" data-admin-section="subjects">Asignaturas y colores</button>
+        <button class="admin-tab" data-admin-section="books">Libros PDF</button>
+      </div>
+
+      <div id="adminEvents" class="admin-section active">
+        <form id="eventForm" class="form">
+          <input id="eventId" type="hidden">
+          <label>Tipo<select id="eventType"><option value="exam">Examen</option><option value="task">Entrega</option><option value="activity">Actividad</option><option value="other">Otro</option></select></label>
+          <label>Fecha<input id="eventDate" type="date" required></label>
+          <label>Hora<input id="eventTime" type="time"></label>
+          <label>Asignatura<select id="eventSubject" required></select></label>
+          <label>Título<input id="eventTitle" required maxlength="120"></label>
+          <label>Descripción<textarea id="eventDescription" rows="4"></textarea></label>
+          <div class="row"><button class="primary" type="submit">Guardar evento</button><button type="button" id="cancelEvent">Limpiar</button></div>
+        </form>
+        <div id="adminEventsList"></div>
+      </div>
+
+      <div id="adminSubjects" class="admin-section">
+        <form id="subjectForm" class="form inline-form">
+          <input id="subjectId" type="hidden">
+          <label>Asignatura<input id="subjectName" required maxlength="80"></label>
+          <label>Color representativo<input id="subjectColor" type="color" value="#2563eb"></label>
+          <button class="primary" type="submit">Guardar asignatura</button>
+        </form>
+        <div id="subjectsAdminList"></div>
+      </div>
+
+      <div id="adminBooks" class="admin-section">
+        <form id="bookForm" class="form">
+          <label>Nombre del libro<input id="bookTitle" required maxlength="120"></label>
+          <label>Archivo PDF<input id="bookFile" type="file" accept="application/pdf" required></label>
+          <button class="primary" type="submit">Subir PDF</button>
+          <p id="bookUploadStatus"></p>
+        </form>
+        <div id="adminBooksList"></div>
+      </div>
+      <button id="logoutBtn" class="danger">Cerrar sesión</button>
+    </div>
+  </dialog>
+
+  <dialog id="detailsDialog">
+    <div class="dialog-head"><h2 id="detailsTitle"></h2><button class="close" data-close="detailsDialog">×</button></div>
+    <div id="detailsBody"></div>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
