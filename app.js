@@ -34,7 +34,25 @@ function showDetails(id){const e=state.events.find(x=>String(x.id)===String(id))
 window.showDetails=showDetails;
 // Delegación de eventos: evita que los botones dinámicos dependan de manejadores inline.
 document.addEventListener('click', ev=>{const btn=ev.target.closest('[data-event-action]');if(!btn)return;const id=btn.dataset.eventId;const action=btn.dataset.eventAction;if(action==='details')showDetails(id);else if(action==='edit')window.editEvent(id);else if(action==='delete')window.deleteEvent(id)});
-function renderSchedule(){const names=['Hora','Lunes','Martes','Miércoles','Jueves','Viernes'];let h=names.map(n=>`<div class="schedule-cell schedule-head">${n}</div>`).join('');const chosen=JSON.parse(localStorage.getItem('classOptions')||'{}');schedule.forEach(r=>{h+=`<div class="schedule-cell time">${r[0]}</div>`;for(let i=1;i<6;i++){if(r[1]==='PATIO')h+=`<div class="schedule-cell break">PATIO</div>`;else{let parts=(r[i]||'').split(' / ');if(parts.includes('FyQ')&&parts.includes('Economía'))parts=['FyQ','Economía','Artística'];const pair=optativeGroups.findIndex(g=>g.some(x=>parts.includes(x)));if(pair>=0&&chosen[pair])parts=[chosen[pair]];h+=`<div class="schedule-cell">${parts.map(p=>p?`<span class="subject-pill" style="background:${subjectColor(p)}22;color:${subjectColor(p)};border:1px solid ${subjectColor(p)}55">${esc(p)}</span>`:'').join('')}</div>`}}});$('#schedule').innerHTML=h}
+function renderSchedule(){
+ const names=['Hora','Lunes','Martes','Miércoles','Jueves','Viernes'];
+ let h=names.map(n=>`<div class="schedule-cell schedule-head">${n}</div>`).join('');
+ const chosen=JSON.parse(localStorage.getItem('classOptions')||'{}');
+ schedule.forEach(r=>{
+  h+=`<div class="schedule-cell time">${r[0]}</div>`;
+  for(let i=1;i<6;i++){
+   const raw=(r[i]||'').trim();
+   if(raw==='PATIO'){h+='<div class="schedule-cell break">PATIO</div>';continue;}
+   let parts=raw?raw.split(/\s*\/\s*/):[];
+   // FyQ, Economía y Artística forman una única optativa de tres opciones.
+   if(parts.includes('FyQ')&&parts.includes('Economía'))parts=['FyQ','Economía','Artística'];
+   const pair=optativeGroups.findIndex(g=>g.some(subject=>parts.includes(subject)));
+   if(pair>=0&&chosen[pair]&&optativeGroups[pair].includes(chosen[pair]))parts=[chosen[pair]];
+   h+=`<div class="schedule-cell">${parts.map(subject=>`<span class="subject-pill" style="background:${subjectColor(subject)}22;color:${subjectColor(subject)};border:1px solid ${subjectColor(subject)}55">${esc(subject)}</span>`).join('')}</div>`;
+  }
+ });
+ $('#schedule').innerHTML=h;
+}
 function renderBooks(){if(!state.books.length){$('#booksList').innerHTML='<div class="book-card">Todavía no hay libros.</div>';return}$('#booksList').innerHTML=state.books.map(b=>`<article class="book-card book-entry"><div><strong>${esc(b.title)}</strong></div><button onclick="viewBook('${b.id}')">Ver PDF</button></article>`).join('')}
 window.viewBook=id=>{const b=state.books.find(x=>x.id===id);if(!b)return;$('#detailsTitle').textContent=b.title;$('#detailsBody').innerHTML=`<iframe class="book-viewer" src="${b.url}#toolbar=1" title="${esc(b.title)}"></iframe>`;$('#detailsDialog').showModal()}
 function renderOptions(){const saved=JSON.parse(localStorage.getItem('classOptions')||'{}');$('#optionsList').innerHTML=optativeGroups.map((g,i)=>`<label class="option-card">${esc(optativeLabels[i])}<select data-opt-group="${i}"><option value="">Mostrar ambas / Sin elegir</option>${g.map(v=>`<option value="${esc(v)}" ${saved[i]===v?'selected':''}>${esc(v)}</option>`).join('')}</select></label>`).join('');$$('[data-opt-group]').forEach(x=>x.onchange=()=>{const vals=JSON.parse(localStorage.getItem('classOptions')||'{}');if(x.value)vals[x.dataset.optGroup]=x.value;else delete vals[x.dataset.optGroup];localStorage.setItem('classOptions',JSON.stringify(vals));renderSchedule()})}
