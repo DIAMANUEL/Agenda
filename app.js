@@ -44,10 +44,16 @@ function renderSchedule(){
    const raw=(r[i]||'').trim();
    if(raw==='PATIO'){h+='<div class="schedule-cell break">PATIO</div>';continue;}
    let parts=raw?raw.split(/\s*\/\s*/):[];
-   // FyQ, Economía y Artística forman una única optativa de tres opciones.
+   // Las parejas se muestran completas cuando el desplegable está en "Mostrar ambas".
+   // Se consulta primero el valor visible del desplegable para evitar preferencias antiguas
+   // que hayan quedado guardadas en localStorage.
+   if(raw==='Tecnología / Latín') parts=['Tecnología','Latín'];
+   if(raw==='Tutoría') parts=['Tutoría'];
    if(parts.includes('FyQ')&&parts.includes('Economía'))parts=['FyQ','Economía','Artística'];
    const pair=optativeGroups.findIndex(g=>g.some(subject=>parts.includes(subject)));
-   if(pair>=0&&chosen[pair]&&optativeGroups[pair].includes(chosen[pair]))parts=[chosen[pair]];
+   const visibleChoice=document.querySelector(`[data-opt-group="${pair}"]`)?.value;
+   const selected=visibleChoice!==undefined?visibleChoice:chosen[pair];
+   if(pair>=0&&selected&&optativeGroups[pair].includes(selected))parts=[selected];
    h+=`<div class="schedule-cell">${parts.map(subject=>`<span class="subject-pill" style="background:${subjectColor(subject)}22;color:${subjectColor(subject)};border:1px solid ${subjectColor(subject)}55">${esc(subject)}</span>`).join('')}</div>`;
   }
  });
