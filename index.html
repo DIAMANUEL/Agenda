@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#3157d5">
+  <meta name="description" content="Calendario de exámenes, tareas y horario de clase.">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="stylesheet" href="./style.css">
+  <title>Calendario de clase</title>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="Calendario de clase">
+      <span class="brand-mark">C</span>
+      <span><strong>Calendario</strong><small>Tu clase, organizada</small></span>
+    </a>
+    <button id="installBtn" class="button button-light hidden" type="button">Instalar app</button>
+  </header>
+
+  <main class="page">
+    <section class="intro">
+      <div>
+        <p class="eyebrow">CURSO 2026–2027</p>
+        <h1>Organiza tu semana.</h1>
+        <p class="muted">Consulta próximos exámenes, entregas y tus clases.</p>
+      </div>
+      <div class="today-chip"><span class="status-dot"></span><span id="todayLabel">Hoy</span></div>
+    </section>
+
+    <div class="main-grid">
+      <section class="panel calendar-panel" aria-label="Calendario mensual">
+        <div class="panel-heading">
+          <div><p class="eyebrow">PLANIFICACIÓN</p><h2 id="monthTitle">Mes</h2></div>
+          <div class="month-controls">
+            <button id="prevMonth" class="icon-button" aria-label="Mes anterior">‹</button>
+            <button id="nextMonth" class="icon-button" aria-label="Mes siguiente">›</button>
+          </div>
+        </div>
+        <div class="weekdays" aria-hidden="true">
+          <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+        </div>
+        <div id="calendar" class="calendar-grid"></div>
+        <div class="legend">
+          <span><i class="dot dot-exam"></i>Examen</span>
+          <span><i class="dot dot-task"></i>Entrega</span>
+          <span><i class="dot dot-class"></i>Otro</span>
+        </div>
+      </section>
+
+      <section class="panel agenda-panel" aria-live="polite">
+        <div class="panel-heading">
+          <div><p class="eyebrow">AGENDA</p><h2 id="selectedDate">Selecciona un día</h2></div>
+          <span id="eventCount" class="count-pill">0 eventos</span>
+        </div>
+        <div id="dayEvents" class="event-list">
+          <p class="empty-state">Selecciona un día del calendario para consultar sus tareas y exámenes.</p>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-heading section-heading">
+        <div><p class="eyebrow">TU SEMANA</p><h2>Horario de clase</h2><p class="muted small">Horario provisional de ejemplo; lo sustituiremos por el real.</p></div>
+      </div>
+      <div class="schedule-wrap"><div id="schedule" class="schedule"></div></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading section-heading">
+        <div><p class="eyebrow">PERSONALIZACIÓN</p><h2>Mis asignaturas</h2><p class="muted small">Marca las optativas que cursas para filtrar el horario y la agenda.</p></div>
+      </div>
+      <div id="subjects" class="subject-list"></div>
+      <p class="help-text">Tu selección se guarda en este dispositivo. En una versión con cuentas, se guardará para cada alumno.</p>
+    </section>
+
+    <section class="panel reminder-panel">
+      <div class="reminder-icon">♧</div>
+      <div class="reminder-copy"><h2>Recordatorios</h2><p class="muted small">Activa los avisos de este dispositivo. El envío automático de recordatorios cuando la app está cerrada requiere configurar Web Push y un backend.</p></div>
+      <button id="notificationBtn" class="button button-primary" type="button">Activar avisos</button>
+      <p id="notificationStatus" class="notification-status" role="status"></p>
+    </section>
+  </main>
+
+  <footer>Calendario de clase <span>·</span> Aplicación web progresiva</footer>
+  <script src="./app.js" defer></script>
+</body>
+</html>
