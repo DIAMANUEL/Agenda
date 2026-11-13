@@ -102,15 +102,15 @@ async function updateNotifyUI() {
     if (!pushSupported()) { b.disabled = true; t.textContent = 'Este navegador no admite notificaciones push (en iPhone, instala primero la web en la pantalla de inicio).'; return }
     if (!window.VAPID_PUBLIC_KEY) { b.disabled = true; t.textContent = 'Falta configurar VAPID_PUBLIC_KEY en config.js.'; return }
     if (Notification.permission === 'denied') { b.textContent = '🔕 Avisos bloqueados'; t.textContent = 'Has bloqueado las notificaciones; actívalas en los ajustes del sitio.'; return }
-    if (await getPushSub()) { b.textContent = '🔔 Avisos activados (pulsa para desactivar)'; t.textContent = 'Recibirás un aviso el día antes de cada examen que te afecte, aunque la app esté cerrada.' }
-    else { b.textContent = '🔔 Avisarme el día antes de un examen'; t.textContent = '' }
+    if (await getPushSub()) { b.textContent = '🔔 Avisos activados (pulsa para desactivar)'; t.textContent = 'Recibirás un aviso el día antes de cada examen, entrega o actividad que te afecte, aunque la app esté cerrada.' }
+    else { b.textContent = '🔔 Avisarme el día antes de cada evento'; t.textContent = '' }
 }
 $('#notifyBtn')?.addEventListener('click', async () => {
     const b = $('#notifyBtn'), t = $('#notifyStatus'); b.disabled = true;
     try {
         const reg = await navigator.serviceWorker.ready; const existing = await reg.pushManager.getSubscription();
         if (existing) { await db.rpc('delete_push_subscription', { p_endpoint: existing.endpoint }); await existing.unsubscribe() }
-        else { const perm = await Notification.requestPermission(); if (perm === 'granted') { const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToUint8(window.VAPID_PUBLIC_KEY) }); await savePushSub(sub); reg.showNotification('Calendario de clase', { body: 'Avisos activados: te avisaremos el día antes de cada examen.', icon: './icons/icon-192.png', tag: 'notify-on' }) } }
+        else { const perm = await Notification.requestPermission(); if (perm === 'granted') { const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToUint8(window.VAPID_PUBLIC_KEY) }); await savePushSub(sub); reg.showNotification('Calendario de clase', { body: 'Avisos activados: te avisaremos el día antes de cada evento.', icon: './icons/icon-192.png', tag: 'notify-on' }) } }
     } catch (e) { console.error(e); t.textContent = 'No se pudieron activar los avisos: ' + (e.message || e); b.disabled = false; return }
     b.disabled = false; updateNotifyUI()
 });
