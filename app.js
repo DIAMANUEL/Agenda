@@ -17,8 +17,8 @@ const schedule=[
 const optativeGroups=[['Valenciano (Carolina)','Valenciano (Pau)'],['FOPP','Biología'],['Tecnología','Latín'],['Matemáticas A','Matemáticas B'],['FyQ','Economía','Artística'],['Castellano Carolina','Castellano Gema']];
 let jan15Clicks=0,jan15Timer=null;
 const optativeLabels=['Valenciano','FOPP / Biología','Tecnología / Latín','Matemáticas','FyQ / Economía / Artística','Castellano'];
-function subjectColor(name){return state.subjects.find(s=>s.name===name)?.color||'#64748b'}
-function uniqueSubjects(){return [...new Set([...schedule.flatMap(r=>r.slice(1).join('|').split('|').flatMap(x=>x.split(' / '))),...optativeGroups.flat()])].filter(Boolean)}
+function subjectColor(name){const aliases={'Matemáticas A':'Mate A','Matemáticas B':'Mate B'};const key=aliases[name]||name;return state.subjects.find(s=>s.name===name||s.name===key)?.color||(name==='Matemáticas A'?'#2563eb':name==='Matemáticas B'?'#1d4ed8':'#64748b')}
+function uniqueSubjects(){return [...new Set([...schedule.flatMap(r=>r.slice(1).join('|').split('|').flatMap(x=>x.split(' / '))),...optativeGroups.flat(),'Artística','Matemáticas A','Matemáticas B'])].filter(Boolean)}
 async function load(){
  $('#connectionStatus').textContent='Conectado';
  const [e,s,b]=await Promise.all([db.from('class_events').select('*').order('date').order('time'),db.from('subjects').select('*').order('name'),db.from('books').select('*').order('created_at',{ascending:false})]);
@@ -30,20 +30,45 @@ function renderCalendar(){const d=new Date(state.month),y=d.getFullYear(),m=d.ge
 function dayCell(date,other){const iso=localISO(date),ev=state.events.filter(e=>e.date===iso),today=localISO(new Date());return `<div class="day ${other?'other-month':''} ${iso===today?'today':''} ${iso===localISO(state.selected)?'selected':''}" data-date="${iso}"><div class="day-num">${date.getDate()}</div><div class="dots">${ev.slice(0,5).map(e=>`<span class="dot" style="background:${subjectColor(e.subject)}"></span>`).join('')}</div></div>`}
 function renderDay(){const iso=localISO(state.selected),list=state.events.filter(e=>e.date===iso);$('#dayEvents').innerHTML=`<h3>${state.selected.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}</h3>`+(list.length?list.map(e=>`<article class="event-card" style="border-left-color:${subjectColor(e.subject)}"><h3>${esc(e.title)}</h3><div class="meta">${esc(e.subject)}${e.time?' · '+e.time:''} · ${labelType(e.type)}</div><button type="button" data-event-action="details" data-event-id="${e.id}">Ver detalles</button></article>`).join(''):'<div class="event-card"><div class="meta">No hay eventos este día.</div></div>')}
 function labelType(t){return {exam:'Examen',task:'Entrega',activity:'Actividad',other:'Otro'}[t]||t}
-function showDetails(id){const e=state.events.find(x=>x.id===id);if(!e)return;$('#detailsTitle').textContent=e.title;$('#detailsBody').innerHTML=`<p><strong>Asignatura:</strong> ${esc(e.subject)}</p><p><strong>Fecha:</strong> ${new Date(e.date+'T12:00:00').toLocaleDateString('es-ES')}</p>${e.time?`<p><strong>Hora:</strong> ${e.time}</p>`:''}<p><strong>Tipo:</strong> ${labelType(e.type)}</p><p>${esc(e.description||'Sin descripción.')}</p>`;$('#detailsDialog').showModal()}
+function showDetails(id){const e=state.events.find(x=>String(x.id)===String(id));if(!e)return;$('#detailsTitle').textContent=e.title;$('#detailsBody').innerHTML=`<p><strong>Asignatura:</strong> ${esc(e.subject)}</p><p><strong>Fecha:</strong> ${new Date(e.date+'T12:00:00').toLocaleDateString('es-ES')}</p>${e.time?`<p><strong>Hora:</strong> ${e.time}</p>`:''}<p><strong>Tipo:</strong> ${labelType(e.type)}</p><p>${esc(e.description||'Sin descripción.')}</p>`;$('#detailsDialog').showModal()}
 window.showDetails=showDetails;
 // Delegación de eventos: evita que los botones dinámicos dependan de manejadores inline.
 document.addEventListener('click', ev=>{const btn=ev.target.closest('[data-event-action]');if(!btn)return;const id=btn.dataset.eventId;const action=btn.dataset.eventAction;if(action==='details')showDetails(id);else if(action==='edit')window.editEvent(id);else if(action==='delete')window.deleteEvent(id)});
-function renderSchedule(){const names=['Hora','Lunes','Martes','Miércoles','Jueves','Viernes'];let h=names.map(n=>`<div class="schedule-cell schedule-head">${n}</div>`).join('');const chosen=JSON.parse(localStorage.getItem('classOptions')||'{}');schedule.forEach(r=>{h+=`<div class="schedule-cell time">${r[0]}</div>`;for(let i=1;i<6;i++){if(r[1]==='PATIO')h+=`<div class="schedule-cell break">PATIO</div>`;else{let parts=(r[i]||'').split(' / ');const pair=optativeGroups.findIndex(g=>g.some(x=>parts.includes(x)));if(pair>=0&&chosen[pair])parts=[chosen[pair]];h+=`<div class="schedule-cell">${parts.map(p=>p?`<span class="subject-pill" style="background:${subjectColor(p)}22;color:${subjectColor(p)};border:1px solid ${subjectColor(p)}55">${esc(p)}</span>`:'').join('')}</div>`}}});$('#schedule').innerHTML=h}
+function pillStyle(name){let c=subjectColor(name)||'#64748b';const m=/^#?([0-9a-f]{6})$/i.exec(c.trim());if(!m)c='#64748b';else{const n=parseInt(m[1],16),r=n>>16,g=(n>>8)&255,b=n&255;if((0.299*r+0.587*g+0.114*b)>190)c='#64748b'}return `background:${c}22;color:${c};border:1px solid ${c}55`}
+function renderSchedule(){
+ const names=['Hora','Lunes','Martes','Miércoles','Jueves','Viernes'];
+ let h=names.map(n=>`<div class="schedule-cell schedule-head">${n}</div>`).join('');
+ const chosen=JSON.parse(localStorage.getItem('classOptions')||'{}');
+ schedule.forEach(r=>{
+  h+=`<div class="schedule-cell time">${r[0]}</div>`;
+  for(let i=1;i<6;i++){
+   const raw=(r[i]||'').trim();
+   if(raw==='PATIO'){h+='<div class="schedule-cell break">PATIO</div>';continue;}
+   let parts=raw?raw.split(/\s*\/\s*/):[];
+   // Las parejas se muestran completas cuando el desplegable está en "Mostrar ambas".
+   // Se consulta primero el valor visible del desplegable para evitar preferencias antiguas
+   // que hayan quedado guardadas en localStorage.
+   if(raw==='Tecnología / Latín') parts=['Tecnología','Latín'];
+   if(raw==='Tutoría') parts=['Tutoría'];
+   if(parts.includes('FyQ')&&parts.includes('Economía'))parts=['FyQ','Economía','Artística'];
+   const pair=optativeGroups.findIndex(g=>g.some(subject=>parts.includes(subject)));
+   const visibleChoice=document.querySelector(`[data-opt-group="${pair}"]`)?.value;
+   const selected=visibleChoice!==undefined?visibleChoice:chosen[pair];
+   if(pair>=0&&selected&&optativeGroups[pair].includes(selected))parts=[selected];
+   h+=`<div class="schedule-cell">${parts.map(subject=>`<span class="subject-pill" style="${pillStyle(subject)}">${esc(subject)}</span>`).join('')}</div>`;
+  }
+ });
+ $('#schedule').innerHTML=h;
+}
 function renderBooks(){if(!state.books.length){$('#booksList').innerHTML='<div class="book-card">Todavía no hay libros.</div>';return}$('#booksList').innerHTML=state.books.map(b=>`<article class="book-card book-entry"><div><strong>${esc(b.title)}</strong></div><button onclick="viewBook('${b.id}')">Ver PDF</button></article>`).join('')}
 window.viewBook=id=>{const b=state.books.find(x=>x.id===id);if(!b)return;$('#detailsTitle').textContent=b.title;$('#detailsBody').innerHTML=`<iframe class="book-viewer" src="${b.url}#toolbar=1" title="${esc(b.title)}"></iframe>`;$('#detailsDialog').showModal()}
 function renderOptions(){const saved=JSON.parse(localStorage.getItem('classOptions')||'{}');$('#optionsList').innerHTML=optativeGroups.map((g,i)=>`<label class="option-card">${esc(optativeLabels[i])}<select data-opt-group="${i}"><option value="">Mostrar ambas / Sin elegir</option>${g.map(v=>`<option value="${esc(v)}" ${saved[i]===v?'selected':''}>${esc(v)}</option>`).join('')}</select></label>`).join('');$$('[data-opt-group]').forEach(x=>x.onchange=()=>{const vals=JSON.parse(localStorage.getItem('classOptions')||'{}');if(x.value)vals[x.dataset.optGroup]=x.value;else delete vals[x.dataset.optGroup];localStorage.setItem('classOptions',JSON.stringify(vals));renderSchedule()})}
-function populateSubjectSelect(){const names=[...new Set([...state.subjects.map(s=>s.name),...uniqueSubjects()])].sort();$('#eventSubject').innerHTML='<option value="">Selecciona asignatura</option>'+names.map(n=>`<option>${esc(n)}</option>`).join('')}
+function populateSubjectSelect(){const normalize=n=>({'Mate A':'Matemáticas A','Mate B':'Matemáticas B'}[n]||n);const names=[...new Set([...state.subjects.map(s=>normalize(s.name)),...uniqueSubjects(),...state.events.map(e=>normalize(e.subject))])].sort();$('#eventSubject').innerHTML='<option value="">Selecciona asignatura</option>'+names.map(n=>`<option>${esc(n)}</option>`).join('')}
 function renderAdminEvents(){if(!$('#adminEventsList'))return;$('#adminEventsList').innerHTML=state.events.map(e=>`<div class="admin-item"><div><strong>${esc(e.title)}</strong><div class="meta">${e.date} · ${esc(e.subject)}</div></div><div><button type="button" data-event-action="edit" data-event-id="${e.id}">Editar</button> <button type="button" data-event-action="delete" data-event-id="${e.id}">Eliminar</button></div></div>`).join('')||'<p class="meta">No hay eventos.</p>'}
-window.editEvent=id=>{const e=state.events.find(x=>x.id===id);if(!e)return;$('#eventId').value=e.id;$('#eventType').value=e.type;$('#eventDate').value=e.date;$('#eventTime').value=e.time||'';$('#eventSubject').value=e.subject;$('#eventTitle').value=e.title;$('#eventDescription').value=e.description||'';updateEventButton()}
+window.editEvent=id=>{const e=state.events.find(x=>String(x.id)===String(id));if(!e)return;$('#eventId').value=e.id;$('#eventType').value=e.type;$('#eventDate').value=e.date;$('#eventTime').value=e.time||'';$('#eventSubject').value=({'Mate A':'Matemáticas A','Mate B':'Matemáticas B'}[e.subject]||e.subject);$('#eventTitle').value=e.title;$('#eventDescription').value=e.description||'';updateEventButton()}
 window.deleteEvent=async id=>{if(!confirm('¿Eliminar este evento?'))return;const {error}=await db.from('class_events').delete().eq('id',id);if(error)return alert(error.message);await load()}
 function renderAdminSubjects(){if(!$('#subjectsAdminList'))return;$('#subjectsAdminList').innerHTML=state.subjects.map(s=>`<div class="admin-item"><div><span class="color-swatch" style="background:${s.color}"></span> <strong>${esc(s.name)}</strong></div><button onclick="editSubject('${s.id}')">Editar</button></div>`).join('')||'<p class="meta">No hay asignaturas configuradas todavía.</p>'}
-window.editSubject=id=>{const s=state.subjects.find(x=>x.id===id);if(!s)return;$('#subjectId').value=s.id;$('#subjectName').value=s.name;$('#subjectColor').value=s.color||'#2563eb'}
+window.editSubject=id=>{const s=state.subjects.find(x=>String(x.id)===String(id));if(!s)return;$('#subjectId').value=s.id;$('#subjectName').value=s.name;$('#subjectColor').value=s.color||'#2563eb'}
 function renderAdminBooks(){if(!$('#adminBooksList'))return;$('#adminBooksList').innerHTML=state.books.map(b=>`<div class="admin-item"><div><strong>${esc(b.title)}</strong></div><button onclick="deleteBook('${b.id}','${esc(b.storage_path||'')}')">Eliminar</button></div>`).join('')}
 window.deleteBook=async(id,path)=>{if(!confirm('¿Eliminar este libro?'))return;await db.storage.from('books').remove([path]);const {error}=await db.from('books').delete().eq('id',id);if(error)return alert(error.message);await load()}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -60,3 +85,4 @@ $('#eventForm').onsubmit=async ev=>{ev.preventDefault();const payload={type:$('#
 $('#subjectForm').onsubmit=async ev=>{ev.preventDefault();const payload={name:$('#subjectName').value.trim(),color:$('#subjectColor').value};const id=$('#subjectId').value;const q=id?db.from('subjects').update(payload).eq('id',id):db.from('subjects').insert(payload);const {error}=await q;if(error)return alert(error.message);$('#subjectForm').reset();$('#subjectColor').value='#2563eb';await load()};
 $('#bookForm').onsubmit=async ev=>{ev.preventDefault();const file=$('#bookFile').files[0];if(!file||file.type!=='application/pdf')return alert('Selecciona un archivo PDF.');$('#bookUploadStatus').textContent='Subiendo…';const path=`${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;const up=await db.storage.from('books').upload(path,file,{contentType:'application/pdf',upsert:false});if(up.error){$('#bookUploadStatus').textContent=up.error.message;return}const {data:urlData}=db.storage.from('books').getPublicUrl(path);const ins=await db.from('books').insert({title:$('#bookTitle').value.trim(),storage_path:path,url:urlData.publicUrl});if(ins.error){$('#bookUploadStatus').textContent=ins.error.message;return}$('#bookForm').reset();$('#bookUploadStatus').textContent='PDF subido correctamente.';await load()};
 updateEventButton();db.auth.getSession().then(({data})=>{state.session=data.session;load()});db.auth.onAuthStateChange((_e,s)=>{state.session=s});
+if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').then(r=>r.update()).catch(console.error));
