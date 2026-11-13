@@ -28,7 +28,7 @@ async function load() {
     const [e, s, b] = await Promise.all([db.from('class_events').select('*').order('date').order('time'), db.from('subjects').select('*').order('name'), db.from('books').select('*').order('created_at', { ascending: false })]);
     if (e.error) console.error(e.error); if (s.error) console.error(s.error); if (b.error) console.error(b.error);
     state.events = e.data || []; state.subjects = s.data || []; state.books = b.data || [];
-    renderCalendar(); renderDay(); renderSchedule(); renderBooks(); renderOptions(); populateSubjectSelect(); renderAdminEvents(); renderAdminSubjects(); renderAdminBooks(); updateNotifyUI(); checkExamReminders();
+    renderCalendar(); renderDay(); renderSchedule(); renderBooks(); renderOptions(); populateSubjectSelect(); renderAdminEvents(); renderAdminSubjects(); renderAdminBooks(); updateNotifyUI();
 }
 function renderCalendar() { const d = new Date(state.month), y = d.getFullYear(), m = d.getMonth(); $('#monthTitle').textContent = d.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }); const first = new Date(y, m, 1), start = (first.getDay() + 6) % 7, days = new Date(y, m + 1, 0).getDate(), prev = new Date(y, m, 0).getDate(); let html = ''; for (let i = 0; i < start; i++)html += dayCell(new Date(y, m - 1, prev - start + i + 1), true); for (let n = 1; n <= days; n++)html += dayCell(new Date(y, m, n), false); let trailing = (7 - ((start + days) % 7)) % 7; for (let i = 1; i <= trailing; i++) html += dayCell(new Date(y, m + 1, i), true); $('#calendarGrid').innerHTML = html }
 function dayCell(date, other) { const iso = localISO(date), ev = visibleEvents().filter(e => e.date === iso), today = localISO(new Date()); return `<div class="day ${other ? 'other-month' : ''} ${iso === today ? 'today' : ''} ${iso === localISO(state.selected) ? 'selected' : ''}" data-date="${iso}"><div class="day-num">${date.getDate()}</div><div class="dots">${ev.slice(0, 5).map(e => `<span class="dot" style="background:${subjectColor(e.subject)}"></span>`).join('')}</div></div>` }
@@ -66,7 +66,7 @@ function renderSchedule() {
 }
 function renderBooks() { if (!state.books.length) { $('#booksList').innerHTML = '<div class="book-card">Todavía no hay libros.</div>'; return } $('#booksList').innerHTML = state.books.map(b => `<article class="book-card book-entry"><div><strong>${esc(b.title)}</strong></div><button onclick="viewBook('${b.id}')">Ver PDF</button></article>`).join('') }
 window.viewBook = id => { const b = state.books.find(x => x.id === id); if (!b) return; $('#detailsTitle').textContent = b.title; $('#detailsBody').innerHTML = `<iframe class="book-viewer" src="${b.url}#toolbar=1" title="${esc(b.title)}"></iframe>`; $('#detailsDialog').showModal() }
-function renderOptions() { const saved = JSON.parse(localStorage.getItem('classOptions') || '{}'); $('#optionsList').innerHTML = optativeGroups.map((g, i) => `<label class="option-card">${esc(optativeLabels[i])}<select data-opt-group="${i}"><option value="">Mostrar ambas / Sin elegir</option>${g.map(v => `<option value="${esc(v)}" ${saved[i] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>`).join(''); $$('[data-opt-group]').forEach(x => x.onchange = () => { const vals = JSON.parse(localStorage.getItem('classOptions') || '{}'); if (x.value) vals[x.dataset.optGroup] = x.value; else delete vals[x.dataset.optGroup]; localStorage.setItem('classOptions', JSON.stringify(vals)); renderSchedule(); renderCalendar(); renderDay(); checkExamReminders() }) }
+function renderOptions() { const saved = JSON.parse(localStorage.getItem('classOptions') || '{}'); $('#optionsList').innerHTML = optativeGroups.map((g, i) => `<label class="option-card">${esc(optativeLabels[i])}<select data-opt-group="${i}"><option value="">Mostrar ambas / Sin elegir</option>${g.map(v => `<option value="${esc(v)}" ${saved[i] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>`).join(''); $$('[data-opt-group]').forEach(x => x.onchange = () => { const vals = JSON.parse(localStorage.getItem('classOptions') || '{}'); if (x.value) vals[x.dataset.optGroup] = x.value; else delete vals[x.dataset.optGroup]; localStorage.setItem('classOptions', JSON.stringify(vals)); renderSchedule(); renderCalendar(); renderDay(); syncPushHidden() }) }
 function populateSubjectSelect() { const normalize = n => ({ 'Mate A': 'Matemáticas A', 'Mate B': 'Matemáticas B' }[n] || n); const names = [...new Set([...state.subjects.map(s => normalize(s.name)), ...uniqueSubjects(), ...state.events.map(e => normalize(e.subject))])].sort(); $('#eventSubject').innerHTML = '<option value="">Selecciona asignatura</option>' + names.map(n => `<option>${esc(n)}</option>`).join('') }
 function renderAdminEvents() { if (!$('#adminEventsList')) return; $('#adminEventsList').innerHTML = state.events.map(e => `<div class="admin-item"><div><strong>${esc(e.title)}</strong><div class="meta">${e.date} · ${esc(e.subject)}</div></div><div><button type="button" data-event-action="edit" data-event-id="${e.id}">Editar</button> <button type="button" data-event-action="delete" data-event-id="${e.id}">Eliminar</button></div></div>`).join('') || '<p class="meta">No hay eventos.</p>' }
 window.editEvent = id => { const e = state.events.find(x => String(x.id) === String(id)); if (!e) return; $('#eventId').value = e.id; $('#eventType').value = e.type; $('#eventDate').value = e.date; $('#eventTime').value = e.time || ''; $('#eventSubject').value = ({ 'Mate A': 'Matemáticas A', 'Mate B': 'Matemáticas B' }[e.subject] || e.subject); $('#eventTitle').value = e.title; $('#eventDescription').value = e.description || ''; updateEventButton() }
@@ -91,29 +91,26 @@ $('#bookForm').onsubmit = async ev => { ev.preventDefault(); const file = $('#bo
 updateEventButton(); db.auth.getSession().then(({ data }) => { state.session = data.session; load() }); db.auth.onAuthStateChange((_e, s) => { state.session = s });
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').then(r => r.update()).catch(console.error));
 
-// ---- Avisos el día antes de un examen ----
-// Sin servidor Web Push, el aviso se lanza cuando la app está abierta (o en segundo plano en el móvil sin cerrar la pestaña).
-const notifyOn = () => localStorage.getItem('examNotify') === '1' && 'Notification' in window && Notification.permission === 'granted';
-function updateNotifyUI() {
-    const b = $('#notifyBtn'), t = $('#notifyStatus'); if (!b) return; if (!('Notification' in window)) { b.disabled = true; t.textContent = 'Este navegador no admite notificaciones.'; return }
-    if (notifyOn()) { b.textContent = '🔔 Avisos activados (pulsa para desactivar)'; t.textContent = 'Te avisaremos el día antes de cada examen que te afecte, al abrir la app.' }
-    else if (Notification.permission === 'denied') { b.textContent = '🔕 Avisos bloqueados'; t.textContent = 'Has bloqueado las notificaciones en el navegador; actívalas en los ajustes del sitio.' }
+// ---- Avisos push el día antes de un examen (llegan aunque la app esté cerrada) ----
+const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const b64ToUint8 = b => { const pad = '='.repeat((4 - b.length % 4) % 4), raw = atob((b + pad).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from([...raw].map(c => c.charCodeAt(0))) };
+async function getPushSub() { if (!pushSupported()) return null; try { const reg = await navigator.serviceWorker.ready; return await reg.pushManager.getSubscription() } catch (e) { return null } }
+async function savePushSub(sub) { const j = sub.toJSON(); const { error } = await db.rpc('save_push_subscription', { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth, p_hidden: [...hiddenSubjects()] }); if (error) throw error }
+async function syncPushHidden() { const sub = await getPushSub(); if (sub) try { await savePushSub(sub) } catch (e) { console.error(e) } }
+async function updateNotifyUI() {
+    const b = $('#notifyBtn'), t = $('#notifyStatus'); if (!b) return;
+    if (!pushSupported()) { b.disabled = true; t.textContent = 'Este navegador no admite notificaciones push (en iPhone, instala primero la web en la pantalla de inicio).'; return }
+    if (!window.VAPID_PUBLIC_KEY) { b.disabled = true; t.textContent = 'Falta configurar VAPID_PUBLIC_KEY en config.js.'; return }
+    if (Notification.permission === 'denied') { b.textContent = '🔕 Avisos bloqueados'; t.textContent = 'Has bloqueado las notificaciones; actívalas en los ajustes del sitio.'; return }
+    if (await getPushSub()) { b.textContent = '🔔 Avisos activados (pulsa para desactivar)'; t.textContent = 'Recibirás un aviso el día antes de cada examen que te afecte, aunque la app esté cerrada.' }
     else { b.textContent = '🔔 Avisarme el día antes de un examen'; t.textContent = '' }
 }
-async function showNotice(title, body, tag) { const opts = { body, tag, icon: './icons/icon-192.png', badge: './icons/icon-192.png' }; try { const reg = await navigator.serviceWorker?.ready; if (reg) return await reg.showNotification(title, opts) } catch (e) { console.error(e) } try { new Notification(title, opts) } catch (e) { console.error(e) } }
-function checkExamReminders() {
-    if (!notifyOn()) return; const t = new Date(); t.setDate(t.getDate() + 1); const tomorrow = localISO(t);
-    visibleEvents().filter(e => e.type === 'exam' && e.date === tomorrow).forEach(e => {
-        const key = `examNotified:${e.id}:${e.date}`; if (localStorage.getItem(key)) return; localStorage.setItem(key, '1');
-        showNotice('Mañana hay examen: ' + normSubject(e.subject), e.title + (e.time ? ' · ' + e.time : ''), 'exam-' + e.id)
-    })
-}
 $('#notifyBtn')?.addEventListener('click', async () => {
-    if (!('Notification' in window)) return;
-    if (notifyOn()) { localStorage.setItem('examNotify', '0'); updateNotifyUI(); return }
-    const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
-    if (perm === 'granted') { localStorage.setItem('examNotify', '1'); await showNotice('Calendario de clase', 'Avisos activados: te avisaremos el día antes de cada examen.', 'notify-on'); checkExamReminders() }
-    updateNotifyUI()
+    const b = $('#notifyBtn'), t = $('#notifyStatus'); b.disabled = true;
+    try {
+        const reg = await navigator.serviceWorker.ready; const existing = await reg.pushManager.getSubscription();
+        if (existing) { await db.rpc('delete_push_subscription', { p_endpoint: existing.endpoint }); await existing.unsubscribe() }
+        else { const perm = await Notification.requestPermission(); if (perm === 'granted') { const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToUint8(window.VAPID_PUBLIC_KEY) }); await savePushSub(sub); reg.showNotification('Calendario de clase', { body: 'Avisos activados: te avisaremos el día antes de cada examen.', icon: './icons/icon-192.png', tag: 'notify-on' }) } }
+    } catch (e) { console.error(e); t.textContent = 'No se pudieron activar los avisos: ' + (e.message || e); b.disabled = false; return }
+    b.disabled = false; updateNotifyUI()
 });
-document.addEventListener('visibilitychange', () => { if (!document.hidden) checkExamReminders() });
-setInterval(checkExamReminders, 30 * 60 * 1000);
